@@ -1,5 +1,11 @@
 Unofficial Swift library to interface with Mailgun's API.
 
+Install using CocoaPods:
+
+```ruby
+pod 'MailgunSwift', :git => 'https://github.com/bre7/mailgun-swift.git', :branch => 'master'
+```
+
 
 This is just a quick Swift version of their SDK. The API is pretty much the same for now (great & simple example to use a DSL-styled API).
 
