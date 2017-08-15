@@ -35,13 +35,13 @@ private func TODO() {
 }
 
 /**
- The Mailgun SDK allows your Mac OS X or iOS application to connect with the [Mailgun](http://www.mailgun.com) programmable email platform. Send and manage mailing list subscriptions from your desktop or mobile applications and connect with your users directly in your application.
+ The SDK allows your macOS, iOS or Linux swift application to connect with the [Mailgun](http://www.mailgun.com) programmable email platform. Send and manage mailing list subscriptions from your desktop or mobile applications and connect with your users directly in your application.
 
- *Requirements* The AFNetworking library is required for the `Mailgun` client library.
+ *Requirements* The Alamofire library is required for the `Mailgun` client library.
 
  ## Easy Image Attaching
 
- Using MGMessage will allow you to attach `UIImage` or `NSImage` instances to a message. It will handle converting the image for you and attaching it either inline or to the message header.
+ Using MailgunMessage will allow you to attach `UIImage` or `NSImage` instances to a message. It will handle converting the image for you and attaching it either inline or to the message header.
 
  ## This SDK is not 1:1 to the REST API
 
@@ -51,22 +51,22 @@ private func TODO() {
 
  ## Sending Example
 
- Mailgun *mailgun = [Mailgun clientWithDomain:@"samples.mailgun.org" apiKey:@"key-3ax6xnjp29jd6fds4gc373sgvjxteol0"];
- [mailgun sendMessageTo:@"Jay Baird <jay.baird@rackspace.com>"
- from:@"Excited User <someone@sample.org>"
- subject:@"Mailgun is awesome!"
- body:@"A unicode snowman for you! ☃"];
+ let mailgun = Mailgun(apiKey: "key-3ax6xnjp29jd6fds4gc373sgvjxteol0", domain: "samples.mailgun.org")
+ mailgun.sendMessage(to: "Jay Baird <jay.baird@rackspace.com>",
+                     from:"Excited User <someone@sample.org>",
+                     subject:"Mailgun is awesome!",
+                     body:"A unicode snowman for you! ☃")
 
  ## Installing
 
  1. Install via Cocoapods
 
- pod install mailgun
+ pod 'MailgunSwift', :git => 'https://github.com/bre7/mailgun-swift.git', :branch => 'master'
 
  2. Install via Source
 
  1. Clone the repository.
- 2. Copy Mailgun.h/.m and MGMessage.h/.m to your project.
+ 2. Copy all the Swift files inside the **Source** folder to your project.
  3. There's no step three!
 
  */
@@ -76,7 +76,7 @@ public struct Mailgun {
     private let configuration  = URLSessionConfiguration.default
     private let sessionManager: Alamofire.SessionManager
 
-    /// Callback used after a message is sent. Will return Error or the messageId
+    /// Callback used after a message is sent. Will return Error or the message's `messageId`
     public typealias SendMessageCallback = (Result<String>) -> Void
     public typealias MailingListQueryCallback = (Result<NSDictionary>) -> Void
     public typealias MailingListAddRemoveCallback = (Result<Void>) -> Void
@@ -90,7 +90,7 @@ public struct Mailgun {
 
     private let apiKey: String
     private let domain: String
-    private var headers: HTTPHeaders = [:]
+    private let authHeaders: HTTPHeaders
 
     public init(apiKey: String, domain: String) {
         self.apiKey = apiKey
@@ -100,40 +100,26 @@ public struct Mailgun {
         self.sessionManager = Alamofire.SessionManager(configuration: configuration)
 
         let authorizationHeader = Request.authorizationHeader(user: "api", password: apiKey)!
-        self.headers[authorizationHeader.key] = authorizationHeader.value
+        self.authHeaders = [authorizationHeader.key : authorizationHeader.value]
     }
 
     // MARK: - Sending an Ad-Hoc Mailgun Message
 
-    /// Sends a previously constructed MGMessage with the provided callback.
+    /// Sends a previously constructed `MailgunMessage` with the provided callback.
     ///
     /// - Parameters:
     ///   - message: Message to be sent
     ///   - completion: Completion block (success/failure)
     public func send(message: MailgunMessage, completion: SendMessageCallback? = nil) {
         let messagePath = "/\(domain)/messages"
-        let parameters = message.dictionary()
 
-        let _ = Alamofire.upload(
+        Alamofire.upload(
             multipartFormData: { multipartFormData in
-                // Send parameters before files
-                for (key, value) in parameters {
-                    multipartFormData.append(value.data(using: .utf8)!, withName: key)
-                }
-
-                for (index, attachment) in message.attachments.enumerated() {
-                    let name = "attachment[\(index)]"
-                    multipartFormData.append(attachment.value.data, withName: name, fileName: attachment.key, mimeType: attachment.value.type)
-                }
-
-                for (index, attachment) in message.inlineAttachments.enumerated() {
-                    let name = "attachment[\(index)]"
-                    multipartFormData.append(attachment.value.data, withName: name, fileName: attachment.key, mimeType: attachment.value.type)
-                }
+                self.addFormData(to: multipartFormData, from: message)
             },
             to: apiUrl + messagePath,
             method: .post,
-            headers: headers,
+            headers: authHeaders,
             encodingCompletion: { encodingResult in
                 switch encodingResult {
                 case .success(let upload, _, _):
@@ -144,13 +130,13 @@ public struct Mailgun {
                             if let messageId = json["id"] as? String {
                                 completion?(.success(messageId))
                             } else {
-                                completion?(.failure(APIError.invalidResponse))
+                                completion?(.failure(APIError.invalidJSON))
                             }
                         } else {
                             debugPrint("Request: \(response.request!)")
                             debugPrint("Response: \(response.response!)")
                             debugPrint("Result: \(response.result)")
-                            let error = response.result.error ?? APIError.invalidJSON
+                            let error = response.result.error ?? APIError.invalidResponse
                             completion?(.failure(error))
                         }
                     }
@@ -174,6 +160,30 @@ public struct Mailgun {
     public func sendMessage(to: String, from: String, subject: String, body: String, callback: SendMessageCallback? = nil) {
         let message = MailgunMessage(from: from, to: to, message: subject, body: body)
         self.send(message: message, completion: callback)
+    }
+
+    /// Add multiparm form data to the corresponding Alamofire class.
+    ///
+    /// - Parameters:
+    ///   - multipartFormData: multipart form data's container
+    ///   - message: Messsage being sent
+    fileprivate func addFormData(to multipartFormData: MultipartFormData, from message: MailgunMessage) {
+        let parameters = message.dictionary()
+
+        // Send parameters before files
+        for (key, value) in parameters {
+            multipartFormData.append(value.data(using: .utf8)!, withName: key)
+        }
+
+        for (index, attachment) in message.attachments.enumerated() {
+            let name = "attachment[\(index)]"
+            multipartFormData.append(attachment.value.data, withName: name, fileName: attachment.key, mimeType: attachment.value.type)
+        }
+
+        for (index, attachment) in message.inlineAttachments.enumerated() {
+            let name = "attachment[\(index)]"
+            multipartFormData.append(attachment.value.data, withName: name, fileName: attachment.key, mimeType: attachment.value.type)
+        }
     }
 
     // MARK: - Checking Mailing List Subscription
