@@ -47,14 +47,7 @@ import Foundation
         }
     }
 #elseif os(macOS)
-    public enum ImageFormat: String {
-        case bmp
-        case gif
-        case jpeg
-        case jpeg2000
-        case png
-        case tiff
-
+    extension NSBitmapImageRep.FileType {
         var mimeType: String {
             switch self {
             case .tiff:
@@ -71,13 +64,13 @@ import Foundation
                 return "image/bmp"
             }
         }
-
+        
         var fileExtension: String {
             switch self {
             case .jpeg2000:
-                return ImageFormat.jpeg.rawValue
+                return NSBitmapImageRep.FileType.jpeg.mimeType.components(separatedBy: "/").last!
             default:
-                return rawValue
+                return mimeType.components(separatedBy: "/").last!
             }
         }
     }
@@ -265,13 +258,13 @@ public class MailgunMessage {
     /// - Parameters:
     ///   - image: The `NSImage` to be attached to the message.
     ///   - named: The name used to identify this attachment in the message.
-    ///   - type: The `NSBitmapImageFileType` identifying the type of image as JPEG or a PNG.
+    ///   - type: The `NSBitmapImageRep.FileType` identifying the type of image as JPEG or a PNG.
     ///   - inline: Indicates whether the image should be inlined or not (false by default)
-    public func add(image: NSImage, named name: String, type: ImageFormat, inline: Bool = false) {
+    public func add(image: NSImage, named name: String, type: NSBitmapImageRep.FileType, inline: Bool = false) {
         let mimeType = type.mimeType
-        let imgRep = image.representations.first!
+        let imgRep = image.representations.first! as! NSBitmapImageRep
         let data = imgRep.representation(using:type, properties:[:])!
-
+        
         // Append extension if needed
         let filename = name.hasSuffix(".\(type.fileExtension)") ? name : name + ".\(type.fileExtension)"
         if inline {
