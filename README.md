@@ -1,3 +1,6 @@
+⚠️ Library is not being actively maintained. ⚠️
+====
+
 Unofficial Swift library to interface with Mailgun's API.
 
 Install using CocoaPods:
