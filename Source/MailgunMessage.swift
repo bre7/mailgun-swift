@@ -64,7 +64,7 @@ import Foundation
                 return "image/bmp"
             }
         }
-        
+
         var fileExtension: String {
             switch self {
             case .jpeg2000:
@@ -237,10 +237,9 @@ public class MailgunMessage {
 
         switch type {
         case .jpeg:
-            data = UIImageJPEGRepresentation(image, 0.9)!
+             data = image.jpegData(compressionQuality: 0.9)!
         case .png:
-            data = UIImagePNGRepresentation(image)!
-        }
+            data = image.pngData()!
 
         // Append extension if needed
         let filename = name.hasSuffix(".\(type.fileExtension)") ? name : name + ".\(type.fileExtension)"
@@ -264,7 +263,7 @@ public class MailgunMessage {
         let mimeType = type.mimeType
         let imgRep = image.representations.first! as! NSBitmapImageRep
         let data = imgRep.representation(using:type, properties:[:])!
-        
+
         // Append extension if needed
         let filename = name.hasSuffix(".\(type.fileExtension)") ? name : name + ".\(type.fileExtension)"
         if inline {
